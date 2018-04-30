@@ -1,21 +1,56 @@
 import pycom
 import time
+import os
+from network import WLAN
+from machine import SD
 
+# Disable default LED heartbeat
 pycom.heartbeat(False)
 
-# Hello world blinking awesomeness
-while True:
-    pycom.rgbled(0xAA0000)
-    time.sleep(1)
-    pycom.rgbled(0x00AA00)
-    time.sleep(1)
-    pycom.rgbled(0x0000AA)
-    time.sleep(1)
+# Load WLAN module in station mode
+wlan = WLAN(mode=WLAN.STA)
 
-# two files:
-#       main/scanner -> scans wifi and starts persistor
-#       data_mngr -> writes to SD card (also checks size etc etc)
-#                   -> if not moving for some time -> connect to known wifi (if there is) and upload to service
-# dictionary of known WLANs (ssid key: (ssid, bssid, sec, channel, rssi))
-# infinite loop of WLAN scanning (maybe add a delay)
-# add to dictionary
+# Mount and prepare SD card
+SD_MNT_PNT = '/sd'
+FILE_DIR = 'dump_data'
+FILE_PATH = SD_MNT_PNT + '/' + FILE_DIR
+
+sd = SD()
+os.mount(sd, SD_MNT_PNT)
+
+if FILE_DIR not in os.listdir(SD_MNT_PNT):
+    os.mkdir(SD_MNT_PNT + FILE_PATH)
+
+# Constant WIFI scanning
+while True:
+
+    line_entry = 'SSID: {} - ENC: {}'
+    sec_state = 3
+
+    nets = wlan.scan()
+
+    for net in nets:
+
+        print(line_entry.format(net.ssid, net.sec))
+
+        # Update minimum sec in current scan and set LED
+        if net.sec < sec_state:
+            sec_state = net.sec
+
+    print('-------------------------------')
+
+    # Update LED according to least secure wifi
+    if sec_state == 0:  # no encryption
+        pycom.rgbled(0xFF0000)
+
+    if sec_state == WLAN.WEP:
+        pycom.rgbled(0xFFA500)
+
+    if sec_state == WLAN.WPA:
+        pycom.rgbled(0x0000FF)
+
+    if sec_state == WLAN.WPA2:
+        pycom.rgbled(0x0000FF)
+
+    if sec_state == WLAN.WPA2_ENT:
+        pycom.rgbled(0xFFFFFF)
