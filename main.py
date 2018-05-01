@@ -9,44 +9,65 @@ from machine import SD
 # Disable default LED heartbeat
 pycom.heartbeat(False)
 
+# Initialize GPS / GLONASS
+pytrk = Pytrack()
+t = 30  # maximum time (s) for GPS fix
+
+# wait for GPS uplink
+while True:
+    pycom.rgbled(0xFF0000)  # light LED red while waiting for GPS
+    gps = L76GNSS(pytrk, timeout=t)
+    if gps.coordinates()[0] is not None:
+        pycom.rgbled(0x000000)  # disable LED once we have GPS,
+        break
+
 # Load WLAN module in station mode
 wlan = WLAN(mode=WLAN.STA)
 
-# Initialize GPS / GLONASS
-t = 30  # maximum time (s) for GPS fix
-pytrk = Pytrack()
-gps = L76GNSS(pytrk, timeout=t)
 
 # Initialize RTC
 rtc = machine.RTC()  # todo properly init RTC (GPS) - now only epoch start
 # rtc.ntp_sync('pool.ntp.org')  # server to use for RTC synchronization
 
-# Mount and prepare SD card
+# set variables for file management
 SD_MNT_PNT = '/sd'
 FILE_DIR = 'dump_data'
-FILE_NAME = 'wifi.log'
+FILE_NAME = 'wifi'
 DIR_PATH = SD_MNT_PNT + '/' + FILE_DIR
-FILE_PATH = SD_MNT_PNT + '/' + FILE_DIR + '/' + FILE_NAME
 
+
+# Mount and prepare SD card
 sd = SD()
 os.mount(sd, SD_MNT_PNT)
 
 if FILE_DIR not in os.listdir(SD_MNT_PNT):
-    os.mkdir(SD_MNT_PNT + DIR_PATH)
+    os.mkdir(DIR_PATH)
 
-# log_file = open(FILE_PATH, 'a')
+
+# create new log file for each session
+noFiles = len(os.listdir(DIR_PATH))
+FILE_PATH = SD_MNT_PNT + '/' + FILE_DIR + '/' + FILE_NAME + str(noFiles) + ".log"
+
+
+#blink green 3 times?
+
 
 # Constant WIFI scanning
 while True:
 
+    # open log file
+    log_file = open(FILE_PATH, 'a')
+
+
+
     # Get coordinates
     coord = gps.coordinates()
-
-    # todo - only continue if GPS fix was found -> then scan etc etc
 
     line_entry = 'SSID: {} - ENC: {} - @ (LON: {} / LAT: {})'
     sec_state = 3
 
+
+    # Scan wifis
     nets = wlan.scan()
 
     for net in nets:
@@ -66,32 +87,32 @@ while True:
                                                 coord[0],
                                                 coord[1]))
 
-        '''log_file.write('{},{},{},{},{},{},{},{}'.format(net.ssid,
+        log_file.write('{},{},{},{},{},{},{},{}\n'.format(net.ssid,
                                                         net.bssid,
                                                         net.sec,
                                                         net.channel,
                                                         net.rssi,
                                                         rtc.now(),
                                                         coord[0],
-                                                        coord[1]))'''
+                                                        coord[1]))
 
     print('-------------------------------')
 
     # Update LED according to least secure wifi
-    if sec_state == 0:  # no encryption
-        pycom.rgbled(0xFF0000)
-
-    if sec_state == WLAN.WEP:
-        pycom.rgbled(0xFFA500)
-
-    if sec_state == WLAN.WPA:
-        pycom.rgbled(0x0000FF)
-
-    if sec_state == WLAN.WPA2:
-        pycom.rgbled(0x0000FF)
-
-    if sec_state == WLAN.WPA2_ENT:
+    if sec_state == 0:  # no encryption == white
         pycom.rgbled(0xFFFFFF)
 
-# Cleanup
-#log_file.close()
+    if sec_state == WLAN.WEP:
+        pycom.rgbled(0xFF00FF)
+
+    if sec_state == WLAN.WPA:
+        pycom.rgbled(0x00FF00)
+
+    if sec_state == WLAN.WPA2:
+        pycom.rgbled(0x00FF00)
+
+    if sec_state == WLAN.WPA2_ENT:
+        pycom.rgbled(0xFF00FF)
+
+    # Cleanup
+    log_file.close()
