@@ -1,0 +1,3 @@
+[submodule "pytrack-case"]
+	path = pytrack-case
+	url = git@git.palladion.it:palladion/pytrack-case.git
